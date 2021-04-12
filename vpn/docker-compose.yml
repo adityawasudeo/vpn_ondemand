@@ -9,6 +9,6 @@ services:
             dockerfile: $PWD/Dockerfile
         entrypoint: ["/startVPN.sh"]
         ports:
-            - "1194:1194"
+            - "1194:1194/udp"
         restart: "no"
         tty: true
