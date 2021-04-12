@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#git clone --branch release/2.x  https://github.com/OpenVPN/easy-rsa.git
+git clone --branch release/2.x  https://github.com/OpenVPN/easy-rsa.git
 if [ ! -d "easy-rsa" ]
 then
     echo "unable to checkout easy-rsa"
@@ -18,5 +18,6 @@ export EASY_RSA="${EASY_RSA:-.}"
 ./pkitool  --server server
 ./pkitool client1
 ./pkitool client2
+./build-dh
 cp -R keys/ ../../../
 cd ../../..
