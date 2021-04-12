@@ -1,0 +1,14 @@
+version: "3.9"
+services:
+    vpn:
+        container_name: openvpn-node
+        cap_add:
+            - NET_ADMIN
+        build:
+            context: ../
+            dockerfile: $PWD/Dockerfile
+        entrypoint: ["/startVPN.sh"]
+        ports:
+            - "1194:1194"
+        restart: "no"
+        tty: true
