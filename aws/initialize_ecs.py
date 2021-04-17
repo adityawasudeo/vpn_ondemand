@@ -1,7 +1,7 @@
 # helper script to initialize an ECS cluster in an AWS location using the vpn-ondemand container.
 # Run this after you push the docker image to ECS
 
-import sys,boto3
+import sys,boto3,time
 import botocore.exceptions
 
 SERVICE_NAME = 'vpn-ondemand'
@@ -55,7 +55,7 @@ def createCluster(clientObj):
                     )
     if len(response['clusters']) > 0:
         return (response['clusters'][0]['clusterArn'],
-    response['clusters'][0]['registeredContainerInstancesCount'])
+    response['clusters'][0]['runningTasksCount'])
 
     response = clientObj.create_cluster(clusterName=SERVICE_NAME)
     print(response)
@@ -119,11 +119,16 @@ def registerContainerInstance(clientObj,security_group_id):
         )
     print(response)
     instanceId = response['Instances'][0]['InstanceId']
-    # get public IP
-    network_iface = clientObj.describe_network_interfaces()
-    for iface in network_iface['NetworkInterfaces']:
-        if iface['Attachment']['InstanceId'] == instanceId:
-            return iface['Association']['PublicIp']
+    # get public IP. need to check this in a loop because public IP is assigned a few seconds
+    # after container bring up
+    while True:
+        network_iface = clientObj.describe_network_interfaces()
+        for iface in network_iface['NetworkInterfaces']:
+            if iface['Attachment']['InstanceId'] == instanceId:
+                if 'Association' in iface.keys():
+                    return iface['Association']['PublicIp']
+                else:
+                    time.sleep(5)
 
 def getContainerIPAddr(clientObj):
     network_iface = clientObj.describe_network_interfaces()
