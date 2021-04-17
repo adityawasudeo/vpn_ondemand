@@ -10,14 +10,14 @@ def createECSTaskDefinition(clientObj, repo_name):
     # check if task definition already exists and return if it does
     try:
         response = clientObj.describe_task_definition(
-                            taskDefinition='vpn-ondemand')
+                            taskDefinition=SERVICE_NAME)
         if response['taskDefinition'] and response['taskDefinition']['taskDefinitionArn']:
             return response['taskDefinition']['taskDefinitionArn']
     except botocore.exceptions.ClientError:
         pass
 
     container_def = {
-            'name'  :'vpn-ondemand',
+            'name'  :SERVICE_NAME,
             'image' : repo_name,
             'cpu': 500,
             'memory': 400,
@@ -41,7 +41,7 @@ def createECSTaskDefinition(clientObj, repo_name):
 
             }
     response = clientObj.register_task_definition(
-                family='vpn-ondemand',
+                family=SERVICE_NAME,
                 networkMode='bridge',
                 containerDefinitions = [container_def], 
                 requiresCompatibilities=['EC2'])
@@ -51,28 +51,29 @@ def createECSTaskDefinition(clientObj, repo_name):
 def createCluster(clientObj):
     # check if the cluster already exists
     response = clientObj.describe_clusters(
-                        clusters=['vpn-ondemand'],
+                        clusters=[SERVICE_NAME],
                     )
     if len(response['clusters']) > 0:
-        return response['clusters'][0]['clusterArn']
+        return (response['clusters'][0]['clusterArn'],
+    response['clusters'][0]['registeredContainerInstancesCount'])
 
-    response = clientObj.create_cluster(clusterName='vpn-ondemand')
+    response = clientObj.create_cluster(clusterName=SERVICE_NAME)
     print(response)
-    return response['cluster']['clusterArn']
+    return (response['cluster']['clusterArn'],0)
 
 def createService(clientObj,taskARN,clusterARN):
     # check if the service already exists in the cluster
     response = clientObj.describe_services(
                     cluster=clusterARN,
                     services=[
-                        'vpn-ondemand'
+                        SERVICE_NAME
                     ],
                 )
     if len(response['services']) > 0:
         return response['services'][0]['serviceArn']
 
     response = clientObj.create_service(cluster=clusterARN,
-                                        serviceName='vpn-ondemand',
+                                        serviceName=SERVICE_NAME,
                                         taskDefinition=taskARN,
                                         desiredCount=1,
                                         launchType='EC2')
@@ -83,13 +84,13 @@ def createSecurityGroup(clientObj):
     # check if security group already exists. if it does, just return its id
     response = clientObj.describe_security_groups(
     Filters=[
-        dict(Name='group-name', Values=['vpn-ondemand'])
+        dict(Name='group-name', Values=[SERVICE_NAME])
         ]
     )
     if len(response['SecurityGroups']) > 0:
         return response['SecurityGroups'][0]['GroupId']
 
-    response = clientObj.create_security_group(GroupName='vpn-ondemand',
+    response = clientObj.create_security_group(GroupName=SERVICE_NAME,
                                     Description = 'Security rules for openvpn containers'
                                     )
     security_group_id = response['GroupId']
@@ -114,11 +115,25 @@ def registerContainerInstance(clientObj,security_group_id):
                 IamInstanceProfile={
                     "Name": "ecsInstanceRole"
                 },
-                UserData="#!/bin/bash \n echo ECS_CLUSTER=" + 'vpn-ondemand' + " >> /etc/ecs/ecs.config"
+                UserData="#!/bin/bash \n echo ECS_CLUSTER=" + SERVICE_NAME + " >> /etc/ecs/ecs.config"
         )
     print(response)
     instanceId = response['Instances'][0]['InstanceId']
-    return instanceId
+    # get public IP
+    network_iface = clientObj.describe_network_interfaces()
+    for iface in network_iface['NetworkInterfaces']:
+        if iface['Attachment']['InstanceId'] == instanceId:
+            return iface['Association']['PublicIp']
+
+def getContainerIPAddr(clientObj):
+    network_iface = clientObj.describe_network_interfaces()
+    for iface in network_iface['NetworkInterfaces']:
+        group_list = iface['Groups']
+        for group in group_list:
+            if group['GroupName'] == SERVICE_NAME:
+                return iface['Association']['PublicIp']
+
+    return None
 
 if len(sys.argv) != 3:
     print("Usage: ./initialize_ecs <ecs repository name> <aws region name>")
@@ -130,9 +145,16 @@ clientObj = boto3.client('ecs',region_name=region)
 ec2ClientObj = boto3.client('ec2',region_name=region)
 
 taskARN = createECSTaskDefinition(clientObj,repo_name)
-clusterARN = createCluster(clientObj)
+(clusterARN,registeredContainers) = createCluster(clientObj)
 serviceARN = createService(clientObj,taskARN,clusterARN)
 
 
 securityGroupId = createSecurityGroup(ec2ClientObj)
-registerContainerInstance(ec2ClientObj,securityGroupId)
+ipAddr = None
+if registeredContainers > 0:
+    ipAddr = getContainerIPAddr(ec2ClientObj)
+
+if ipAddr is None:
+    ipAddr = registerContainerInstance(ec2ClientObj,securityGroupId)
+
+print(ipAddr)
