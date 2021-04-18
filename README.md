@@ -8,7 +8,7 @@ connect to it in a few minutes.
 
 It's especially useful if you're a TV show/Movie fan (or live with one) and want to check out
 Netlix/Amazon Prime catalogs from other countries. Also comes in handy for bypassing those
-annoying Youtube geo-gating rules some publishers like to use.
+annoying geo-gating rules some websites like to use.
 
 VPNs run on AWS Linux containers so you only pay for what you use and are more private than third party
 services. 
