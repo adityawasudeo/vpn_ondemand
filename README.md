@@ -104,7 +104,7 @@ python3 initialize_ecs.py <region code> stop
 Import the config and keys in the client_keys/ directory into any VPN client. I have tested with
 with Tunnelblick on Mac and OpenVPN on Android. 
 
-## Wishlist/Coming Soon (hopefully)
+## Wishlist/Roadmap/Coming soon (hopefully)
 * Web frontend to make spinning up spinning down VPNs easy
 * Multi-user support
 
