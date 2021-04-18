@@ -7,13 +7,43 @@ import botocore.exceptions
 SERVICE_NAME = 'vpn-ondemand'
 CLIENT_KEY_DIR = 'client_keys'
 
-def verifyRegion(regionInput):
-    clientObj = boto3.client('ec2',region_name='ap-south-1')
-    regions = clientObj.describe_regions()
-    for region in regions['Regions']:
-        if region['RegionName'] == regionInput: return True
+SUPPORTED_REGIONS = [
+            'us-west-1',
+            'us-west-2',
+            'us-east-2',
+            'us-east-1',
+            'af-south-1',
+            'ap-east-1',
+            'ap-northeast-1',
+            'ap-northeast-2',
+            'ap-south-1',
+            'ap-southeast-1',
+            'ap-southeast-2',
+            'ca-central-1',
+            'eu-central-1',
+            'eu-north-1',
+            'eu-west-1',
+            'eu-west-2',
+            'eu-south-1',
+            'eu-west-3',
+            'me-south-1',
+            'sa-east-1',
+            'cn-north-1',
+            'cn-northwest-1',
+           ]
 
+def verifyRegion(regionInput):
+    if regionInput in SUPPORTED_REGIONS: return True
     return False
+
+def getAMIName(region):
+    client = boto3.client('ssm',region_name=region)
+    response = client.get_parameters(
+                    Names = [
+                        '/aws/service/ecs/optimized-ami/amazon-linux/recommended/image_id'
+                    ]
+                )
+    return response['Parameters'][0]['Value']
 
 def createECSTaskDefinition(clientObj, repo_name):
     # check if task definition already exists and return if it does
@@ -128,9 +158,9 @@ def createSecurityGroup(clientObj):
     print(response)
     return security_group_id
 
-def registerContainerInstance(clientObj,security_group_id):
+def registerContainerInstance(clientObj,security_group_id,ami_name):
     response =  clientObj.run_instances(
-                ImageId = 'ami-0520a52c94745d2e9',
+                ImageId = ami_name,
                 MinCount=1,
                 MaxCount=1,
                 SecurityGroupIds=[security_group_id],
@@ -186,7 +216,7 @@ if len(sys.argv) != 3:
 if sys.argv[2] == 'stop':
     region = sys.argv[1]
     if verifyRegion(region) == False:
-        print("Region "+region+" does not exist")
+        print("Region "+region+" does not exist or not supported")
         exit(-1)
 
     clientObj = boto3.client('ecs',region_name=region)
@@ -214,7 +244,8 @@ if registeredContainers > 0:
     ipAddr = getContainerIPAddr(clientObj,ec2ClientObj)
 
 if ipAddr is None:
-    ipAddr = registerContainerInstance(ec2ClientObj,securityGroupId)
+    amiName = getAMIName(region)
+    ipAddr = registerContainerInstance(ec2ClientObj,securityGroupId,amiName)
 
 print(ipAddr)
 if not os.path.exists(CLIENT_KEY_DIR):
