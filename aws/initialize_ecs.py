@@ -1,10 +1,19 @@
 # helper script to initialize an ECS cluster in an AWS location using the vpn-ondemand container.
 # Run this after you push the docker image to ECS
 
-import sys,boto3,time
+import sys,boto3,time,os,shutil
 import botocore.exceptions
 
 SERVICE_NAME = 'vpn-ondemand'
+CLIENT_KEY_DIR = 'client_keys'
+
+def verifyRegion(regionInput):
+    clientObj = boto3.client('ec2',region_name='ap-south-1')
+    regions = clientObj.describe_regions()
+    for region in regions['Regions']:
+        if region['RegionName'] == regionInput: return True
+
+    return False
 
 def createECSTaskDefinition(clientObj, repo_name):
     # check if task definition already exists and return if it does
@@ -50,6 +59,7 @@ def createECSTaskDefinition(clientObj, repo_name):
 
 def getEC2Instances(clientObj,active=0):
     containerInstanceList = clientObj.list_container_instances(cluster=SERVICE_NAME)
+    if len(containerInstanceList['containerInstanceArns']) == 0: return []
     containerDetails = clientObj.describe_container_instances(cluster=SERVICE_NAME,
                                 containerInstances=containerInstanceList['containerInstanceArns'])
 
@@ -134,14 +144,19 @@ def registerContainerInstance(clientObj,security_group_id):
     instanceId = response['Instances'][0]['InstanceId']
     # get public IP. need to check this in a loop because public IP is assigned a few seconds
     # after container bring up
+    time.sleep(2)
     while True:
-        network_iface = clientObj.describe_network_interfaces()
-        for iface in network_iface['NetworkInterfaces']:
-            if iface['Attachment']['InstanceId'] == instanceId:
-                if 'Association' in iface.keys():
-                    return iface['Association']['PublicIp']
-                else:
-                    time.sleep(5)
+        try:    
+            network_iface = clientObj.describe_network_interfaces()
+            for iface in network_iface['NetworkInterfaces']:
+                if iface['Attachment']['InstanceId'] == instanceId:
+                    if 'Association' in iface.keys():
+                        return iface['Association']['PublicIp']
+                    else:
+                        time.sleep(5)
+        except KeyError:
+            time.sleep(5)
+            pass
 
 def getContainerIPAddr(clientObj,ec2ClientObj):
     ec2_instance_list = getEC2Instances(clientObj, 1)
@@ -155,6 +170,10 @@ def getContainerIPAddr(clientObj,ec2ClientObj):
 
 def terminateInstances(clientObj,ec2ClientObj):
     ec2_instance_list = getEC2Instances(clientObj)
+    if len(ec2_instance_list) == 0:
+        print("No instances found. Nothing to do")
+        return
+
     response = ec2ClientObj.terminate_instances(InstanceIds=ec2_instance_list)
     print(response)
 
@@ -166,6 +185,10 @@ if len(sys.argv) != 3:
 
 if sys.argv[2] == 'stop':
     region = sys.argv[1]
+    if verifyRegion(region) == False:
+        print("Region "+region+" does not exist")
+        exit(-1)
+
     clientObj = boto3.client('ecs',region_name=region)
     ec2ClientObj = boto3.client('ec2',region_name=region)
     terminateInstances(clientObj,ec2ClientObj)
@@ -173,6 +196,10 @@ if sys.argv[2] == 'stop':
 
 repo_name = sys.argv[1]
 region = sys.argv[2]
+if verifyRegion(region) == False:
+    print("Region "+region+" does not exist")
+    exit(-1)
+
 clientObj = boto3.client('ecs',region_name=region)
 ec2ClientObj = boto3.client('ec2',region_name=region)
 
@@ -190,3 +217,26 @@ if ipAddr is None:
     ipAddr = registerContainerInstance(ec2ClientObj,securityGroupId)
 
 print(ipAddr)
+if not os.path.exists(CLIENT_KEY_DIR):
+    os.makedirs(CLIENT_KEY_DIR)
+client_path = CLIENT_KEY_DIR+"/"+region+"-client.conf"
+shutil.copy('../vpn/client.conf',client_path)
+with open(client_path, 'r') as file:
+    data = file.readlines()
+data2 = []
+for line in data:
+    line = line.replace('SERVER_IP',ipAddr)
+    data2.append(line)
+with open(client_path, 'w') as file:
+    file.writelines( data2 )
+
+key_dir = CLIENT_KEY_DIR+'/keys'
+if not os.path.exists(key_dir):
+    os.makedirs(key_dir)
+ca_path = key_dir+'/ca.crt'
+cert_path = key_dir+'/client1.crt'
+key_path  = key_dir+'/client1.key'
+shutil.copy('../keys/keys/ca.crt',ca_path)
+shutil.copy('../keys/keys/client1.crt',cert_path)
+shutil.copy('../keys/keys/client1.key',key_path) 
+    

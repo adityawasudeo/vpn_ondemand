@@ -144,3 +144,4 @@ index.txt
 *.attr
 *.attr.old
 keys/keys/
+aws/client_keys/
