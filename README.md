@@ -10,10 +10,13 @@ It's especially useful if you're a TV show/Movie fan (or live with one) and want
 Netlix/Amazon Prime catalogs from other countries. Also comes in handy for bypassing those
 annoying Youtube geo-gating rules you run into on some websites
 
-VPNs run on AWS containers so you only pay for what you use and are more private than third party
+VPNs run on AWS Linux containers so you only pay for what you use and are more private than third party
 services. 
 
 ## Prerequisites
+
+vpn_ondemand has been tested on Mac and Linux but it *should* work on Windows as well, there's
+nothing OS specific 
 
 Before you begin, ensure you have met the following requirements:
 <!--- These are just example requirements. Add, duplicate or remove as required --->
