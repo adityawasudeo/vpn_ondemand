@@ -45,11 +45,11 @@ cd ../vpn/
 docker-compose up
 ```
 
-Create an AWS ECR repository by following the instructions [here](https://docs.aws.amazon.com/AmazonECR/latest/userguide/repository-create.html). Note down the repository name which you create. You will push the docker image to this repository and use it to spin up containers in the regions you want a VPN
+Create an AWS ECR repository by following the instructions [here](https://docs.aws.amazon.com/AmazonECR/latest/userguide/repository-create.html). Note down the repository name which you create and the region you created it in. You will push the docker image to this repository and use it to spin up containers in the regions you want a VPN
 
 Tag your docker image with the repository you just created and push it
 ```
-aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <your
+aws ecr get-login-password --region <region name where your repository lives> | docker login --username AWS --password-stdin <your
 repository name>
 docker tag vpn_vpn:latest <your repository name>
 docker push <your repository name>
