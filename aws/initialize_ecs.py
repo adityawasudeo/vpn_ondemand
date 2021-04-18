@@ -48,6 +48,19 @@ def createECSTaskDefinition(clientObj, repo_name):
     print(response)
     return response['taskDefinition']['taskDefinitionArn']                   
 
+def getEC2Instances(clientObj,active=0):
+    containerInstanceList = clientObj.list_container_instances(cluster=SERVICE_NAME)
+    containerDetails = clientObj.describe_container_instances(cluster=SERVICE_NAME,
+                                containerInstances=containerInstanceList['containerInstanceArns'])
+
+    ec2_id_list = []
+    for instance in containerDetails['containerInstances']:
+        if active == 1:
+            if instance['status'] != 'ACTIVE': continue
+        ec2_id_list.append(instance['ec2InstanceId'])
+
+    return ec2_id_list
+
 def createCluster(clientObj):
     # check if the cluster already exists
     response = clientObj.describe_clusters(
@@ -55,7 +68,7 @@ def createCluster(clientObj):
                     )
     if len(response['clusters']) > 0:
         return (response['clusters'][0]['clusterArn'],
-    response['clusters'][0]['runningTasksCount'])
+                    len(getEC2Instances(clientObj,1)))
 
     response = clientObj.create_cluster(clusterName=SERVICE_NAME)
     print(response)
@@ -130,18 +143,32 @@ def registerContainerInstance(clientObj,security_group_id):
                 else:
                     time.sleep(5)
 
-def getContainerIPAddr(clientObj):
-    network_iface = clientObj.describe_network_interfaces()
-    for iface in network_iface['NetworkInterfaces']:
-        group_list = iface['Groups']
-        for group in group_list:
-            if group['GroupName'] == SERVICE_NAME:
-                return iface['Association']['PublicIp']
+def getContainerIPAddr(clientObj,ec2ClientObj):
+    ec2_instance_list = getEC2Instances(clientObj, 1)
+    reservations = ec2ClientObj.describe_instances(
+                        InstanceIds=ec2_instance_list).get("Reservations")
+    for reservation in reservations:
+        for instance in reservation['Instances']:
+            return instance.get("PublicIpAddress")
 
     return None
 
+def terminateInstances(clientObj,ec2ClientObj):
+    ec2_instance_list = getEC2Instances(clientObj)
+    response = ec2ClientObj.terminate_instances(InstanceIds=ec2_instance_list)
+    print(response)
+
 if len(sys.argv) != 3:
-    print("Usage: ./initialize_ecs <ecs repository name> <aws region name>")
+    syntax = "Usage:"+"\n"+"python3 ./initialize_ecs <ecs repository name> <aws region name>"
+    syntax = syntax+"\n"+ "python3 ./initialize_ecs <aws region name> stop"
+    print(syntax)
+    exit(0)
+
+if sys.argv[2] == 'stop':
+    region = sys.argv[1]
+    clientObj = boto3.client('ecs',region_name=region)
+    ec2ClientObj = boto3.client('ec2',region_name=region)
+    terminateInstances(clientObj,ec2ClientObj)
     exit(0)
 
 repo_name = sys.argv[1]
@@ -157,7 +184,7 @@ serviceARN = createService(clientObj,taskARN,clusterARN)
 securityGroupId = createSecurityGroup(ec2ClientObj)
 ipAddr = None
 if registeredContainers > 0:
-    ipAddr = getContainerIPAddr(ec2ClientObj)
+    ipAddr = getContainerIPAddr(clientObj,ec2ClientObj)
 
 if ipAddr is None:
     ipAddr = registerContainerInstance(ec2ClientObj,securityGroupId)
