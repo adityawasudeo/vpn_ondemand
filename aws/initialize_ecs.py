@@ -132,6 +132,17 @@ def createService(clientObj,taskARN,clusterARN):
                                         launchType='EC2')
     print(response)
     return response['service']['serviceArn']
+def startTask(clientObj,taskARN,clusterARN):
+    while True:
+        if len(getEC2Instances(clientObj)) == 0:
+            print("Waiting for EC2 instance to be added to cluster....")
+            time.sleep(5)
+        else: break
+
+    response = clientObj.run_task(cluster=clusterARN,
+                                  launchType='EC2',
+                                  taskDefinition=taskARN)
+    print(response)
 
 def createSecurityGroup(clientObj):
     # check if security group already exists. if it does, just return its id
@@ -237,7 +248,6 @@ taskARN = createECSTaskDefinition(clientObj,repo_name)
 (clusterARN,registeredContainers) = createCluster(clientObj)
 serviceARN = createService(clientObj,taskARN,clusterARN)
 
-
 securityGroupId = createSecurityGroup(ec2ClientObj)
 ipAddr = None
 if registeredContainers > 0:
@@ -247,6 +257,7 @@ if ipAddr is None:
     amiName = getAMIName(region)
     ipAddr = registerContainerInstance(ec2ClientObj,securityGroupId,amiName)
 
+startTask(clientObj,taskARN,clusterARN)
 print(ipAddr)
 if not os.path.exists(CLIENT_KEY_DIR):
     os.makedirs(CLIENT_KEY_DIR)
