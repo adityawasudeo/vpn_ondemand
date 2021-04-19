@@ -106,9 +106,15 @@ def createCluster(clientObj):
     response = clientObj.describe_clusters(
                         clusters=[SERVICE_NAME],
                     )
-    if len(response['clusters']) > 0:
-        return (response['clusters'][0]['clusterArn'],
-                    len(getEC2Instances(clientObj,1)))
+    active_cluster_count = 0
+    clusterARN = None
+    for cluster in response['clusters']:
+        if cluster['status'] == 'ACTIVE':
+            active_cluster_count = active_cluster_count+1
+            clusterARN           = cluster['clusterArn']
+
+    if active_cluster_count > 0:
+        return (clusterARN,len(getEC2Instances(clientObj,1)))
 
     response = clientObj.create_cluster(clusterName=SERVICE_NAME)
     print(response)
