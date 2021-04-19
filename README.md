@@ -8,7 +8,7 @@ connect to it in a few minutes.
 
 It's especially useful if you're a TV show/Movie fan (or live with one) and want to check out
 Netlix/Amazon Prime catalogs from other countries. Also comes in handy for bypassing those
-annoying Youtube geo-gating rules you run into on some websites
+annoying geo-gating rules some websites like to use.
 
 VPNs run on AWS Linux containers so you only pay for what you use and are more private than third party
 services. 
@@ -45,11 +45,11 @@ cd ../vpn/
 docker-compose up
 ```
 
-Create an AWS ECR repository by following the instructions [here](https://docs.aws.amazon.com/AmazonECR/latest/userguide/repository-create.html). Note down the repository name which you create. You will push the docker image to this repository and use it to spin up containers in the regions you want a VPN
+Create an AWS ECR repository by following the instructions [here](https://docs.aws.amazon.com/AmazonECR/latest/userguide/repository-create.html). Note down the repository name which you create and the region you created it in. You will push the docker image to this repository and use it to spin up containers in the regions you want a VPN
 
 Tag your docker image with the repository you just created and push it
 ```
-aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <your
+aws ecr get-login-password --region <region name where your repository lives> | docker login --username AWS --password-stdin <your
 repository name>
 docker tag vpn_vpn:latest <your repository name>
 docker push <your repository name>
@@ -104,7 +104,7 @@ python3 initialize_ecs.py <region code> stop
 Import the config and keys in the client_keys/ directory into any VPN client. I have tested with
 with Tunnelblick on Mac and OpenVPN on Android. 
 
-## Wishlist/Coming Soon (hopefully)
+## Wishlist/Roadmap/Coming soon (hopefully)
 * Web frontend to make spinning up spinning down VPNs easy
 * Multi-user support
 
