@@ -12,3 +12,4 @@ services:
             - "1194:1194/udp"
         restart: "no"
         tty: true
+        platform: linux/amd64
