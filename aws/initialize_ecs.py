@@ -183,7 +183,7 @@ def registerContainerInstance(clientObj,security_group_id,ami_name):
                 SecurityGroupIds=[security_group_id],
                 InstanceType="t2.nano",
                 IamInstanceProfile={
-                    "Name": "ecsInstanceRole"
+                    "Arn": "arn:aws:iam::066185261023:instance-profile/ecsInstanceRole-profile"
                 },
                 UserData="#!/bin/bash \n echo ECS_CLUSTER=" + SERVICE_NAME + " >> /etc/ecs/ecs.config"
         )
